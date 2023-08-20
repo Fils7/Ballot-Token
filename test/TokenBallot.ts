@@ -53,7 +53,7 @@ describe("Tokenized Ballot Tests", async () => {
 
     const lastBlock = await ethers.provider.getBlock("latest");
 
-        // Deploy Ballot Contract
+    // Deploy Ballot Contract
     const BallotContractFactory = await ethers.getContractFactory("TokenizedBallot");
     const BallotContract_ = await BallotContractFactory.deploy(
         PROPOSAL_NAMES.map(ethers.encodeBytes32String),

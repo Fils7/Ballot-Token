@@ -103,6 +103,29 @@ function WalletBalance(params: { address: `0x${string}` }) {
   );
 }
 
+// tokenName \ tokenBalance \ randomProfile
+function randomProfile(){
+  const [data,setData] = useState<any>(null);
+  const [isLoading,setLoading] = useState(true);
+  useEffect(() =>{
+    fetch('httpL//randomuser.me/api')
+    .then((res) => res.json())
+    .then((data) => {
+      setData(data.results[0]);
+      setLoading(false);
+    });
+  }, []);
+
+  if (isLoading) return <p>Loading profile info...</p>;
+  if (!data) return <p>no profile data</p>;
+
+  return <div>
+    <h1>
+      Name: {data.name.tile}{data.name.first}{data.name.last}
+    </h1>
+    <p>email: {data.email</p>
+  </div>
+}
 function App() {
   const { data, isError, isLoading } = useContractRead({
     address: '',
