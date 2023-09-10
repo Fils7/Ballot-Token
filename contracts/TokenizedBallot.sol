@@ -1,72 +1,107 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.0 <0.9.0;
-/// @title Voting with delegation.
+/// @title DAO COntract
 
 interface IMyToken {
-    function getPastVotes(address, uint256) external view returns (uint256);
+    function transfer(address, uint) external returns (bool);
+    function transferFrom( address, address, uint) external returns (bool);
 }
 
-contract TokenizedBallot  {
-    IMyToken tokenContract;
+contract CrowdFunding  {
+    IMyToken public immutable tokenContract;
 
-    struct Proposal {
-        bytes32 name;   // short name (up to 32 bytes)
-        uint voteCount; // number of accumulated votes
+    struct Campaign {
+
+        address creator; // Creator of that campaign
+        uint goal; // Tokens to reach
+        uint pledged; // Tokens pledged for the campaingn
+        uint startDate;   // When the voting starts
+        uint endTime;   // When the voting ends
+        bool claimed;  // If the owner of that campaign claims the tokens
+        
     }
 
-    mapping(address => uint256) votingPowerSpent;
+    // Mapping to connect campaign to their ID
+    mapping(uint => Campaign) public campaigns;
 
-    // A dynamically-sized array of `Proposal` structs.
-    Proposal[] public proposals;
-    uint256 public targetBlockNumber;
-    uint256 public endDate;
-    bool public hasEnded;
+    // a mapping to link the user's address and the number of tokens
+    // they pledged, and another mapping to link the campaign id. 
+    mapping(uint => mapping(address => uint)) public pledgedAmount;
 
-    /// Create a new ballot to choose one of `proposalNames`.
-    /// Choses a `_targetBlockNumber`from where to count the votes.
-    /// Decides end of the voting.
-    constructor(bytes32[] memory proposalNames, address _tokenContract, uint256 _targetBlockNumber, uint256 _endVoting) {
-        require(_targetBlockNumber < block.timestamp);
-        require(_endVoting > block.timestamp);
+    uint numberOfCampaigns; // Keeps track of Campaigns
+    uint256 public endDate; // Specify end of the voting
+    bool public hasEnded; // Checks if campaign already ended
+
+
+    constructor(address _tokenContract) {
         tokenContract = IMyToken(_tokenContract);
-        targetBlockNumber = _targetBlockNumber;
-        endDate = block.timestamp + _endVoting;
-        for (uint i = 0; i < proposalNames.length; i++) {
-            proposals.push(Proposal({name: proposalNames[i], voteCount: 0}));
-        }
+        endVoting = _endVoting;
     }
 
-    function vote(uint proposal, uint256 amount) external {
-        require(votingPower(msg.sender) >= amount, "Trying to vote more than allowed");
-        votingPowerSpent[msg.sender] += amount;
-        proposals[proposal].voteCount += amount;
+    
+    function startVoting(uint _tokensGoal, uint _start, uint _endDate) external {
+        require(_start >= block.timestamp,"Start time is less than current Block Timestamp");
+        require(_endDate > _startAt,"End time is less than Start time");
+
+        // Number of Campaigns increases by 1
+        numberOfCampaigns += 1;
+        campaigns[numberOfCampaigns] = Campaign ({
+            creator: msg.sender,
+            goal: _goal,
+            pledged: 0,
+            startDate: _start,
+            endTime: _endDate,
+            claimed: false
+
+        })
+
+        // TODO: Emit an event
+    }
+
+    // Creator can end the campaign if it's not open already
+    function cancelCampaign(uint _id) external {
+        Campaign memory campaign = campaigns[_id];
+        require(campaign.creator == msg.sender, "You did not create the Campaign");
+        require(block.timestamp < campaign.startDate, "Campaign has already started, cannot cancel it");
+
+        delete campaigns[_id];
+        // TODO: Emit an event
+    }
+
+    // Fund a campaign
+    function fundCampaing(uint _id, uint _amount) external {
+        Campaign storage campaign = campaigns[_id];
+        require(block.timestamp >= campaign.startDate, "Campaign hasn't started");
+        require(block.timestamp <= campaign.endDate, "Campaign is over");
+        campaign.pledged += _amount;
+        pledgedAmount[_id][msg.sender] += _amount;
+        token.transferFrom(msg.sender, address(this), _amount)
 
     }
 
-    function votingPower(address account) public view returns (uint256) {
-        return tokenContract.getPastVotes(account, targetBlockNumber) - votingPowerSpent[account];
+    // Delete the pledged amount
+    function cancelFundingAmount (uint _id, uint _amount) external {
+        Campaign storage campaign = campaigns[_id];
+        require(block.timestamp >= campaign.startDate, "Campaign hasn't started");
+        require(block.timestamp <= campaign.endDate, "Campaign is over");
+        require(pledgedAmount[_id][msg.sender] >= _amount, "You do not have those tokens to unpledge");
+        campaign.pledged -= _amount;
+        pledgedAmount[_id][msg.sender] -= _amount;
+        token.transfer(msg.sender, _amount);
 
+        // TODO: Emit an event
     }
 
-    function winningProposal() public view returns (uint winningProposal_) {
-        uint winningVoteCount = 0;
-        for (uint p = 0; p < proposals.length; p++) {
-            if (proposals[p].voteCount > winningVoteCount) {
-                winningVoteCount = proposals[p].voteCount;
-                winningProposal_ = p;
-            }
-        }
-    }
+    // TODO: Function for the owner to claim the tokens raised
+    // after the campaign end
 
-    function winnerName() external view returns (bytes32 winnerName_) {
-        if (block.timestamp == endDate) {
-            winnerName_ = proposals[winningProposal()].name;
-            hasEnded == true;
-        }
-    }
+    // TODO: Function to refund users if the campaign does not reach the goal
+    // only after campaign ends
+
 
     // Function to querry on chain
     function votingEnded() public view returns (bool) {
         return hasEnded;
     }
-} 
+
+}
